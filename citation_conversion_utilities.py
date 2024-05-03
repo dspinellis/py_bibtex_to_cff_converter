@@ -47,12 +47,17 @@ class Citation():
             self.info_dict['n_authors'] = len(author_list)
             author_dict = {}
             for ind, author_name in enumerate(author_list):
-                assert ',' in author_name, f'No comma (,) in name {author_name}'
-                assert len(author_name.split(',')) == 2, f'More than 1 comma (,) in {author_name}'
                 author_dict[ind] = {}
-                author_dict[ind]['full_name'] = author_name.strip()
-                author_dict[ind]['first_name'] = author_name.split(',')[1].strip()
-                author_dict[ind]['last_name'] = author_name.split(',')[0].strip()
+                if ',' in author_name:
+                    assert len(author_name.split(',')) == 2, f'More than 1 comma (,) in {author_name}'
+                    author_dict[ind]['full_name'] = author_name.strip()
+                    author_dict[ind]['first_name'] = author_name.split(',')[1].strip()
+                    author_dict[ind]['last_name'] = author_name.split(',')[0].strip()
+                else:
+                    assert len(author_name.split()) == 2, f'More than two names {author_name}'
+                    author_dict[ind]['full_name'] = author_name.strip()
+                    author_dict[ind]['first_name'] = author_name.split()[0].strip()
+                    author_dict[ind]['last_name'] = author_name.split()[1].strip()
             self.info_dict['author_dict'] = author_dict
         else:
             self.info_dict['author'] = None
