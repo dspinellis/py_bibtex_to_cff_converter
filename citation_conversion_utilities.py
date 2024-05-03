@@ -1,23 +1,23 @@
-## Modules for citation file conversion
+## Module and CLI for citation file conversion
 
+import argparse
 import os, sys
-import bibtexparser
 from datetime import datetime
+import bibtexparser
 
 class Citation():
-    def __init__(self, bibtex_filepath=None):
+    def __init__(self, bibtex_string):
         self.info_dict = {}
         self.bibtex_provided = False
         self.repo_provided = False
 
-        self.bibtex_filepath = bibtex_filepath
-        self.load_bibtex_file(filepath=self.bibtex_filepath)
+        self.parse_bibtex(bibtex_string)
 
 
-    def load_bibtex_file(self, filepath):
-        '''Load bibtex file from path, and save data in self.info_dict'''
+    def parse_bibtex(self, bibtex_string):
+        '''Load bibtex file from string, and save data in self.info_dict'''
         layers = [bibtexparser.middlewares.LatexDecodingMiddleware()]
-        library = bibtexparser.parse_file(filepath, append_middleware=layers)
+        library = bibtexparser.parse_string(bibtex_string, append_middleware=layers)
 
         assert len(library.entries) == 1, 'more than 1 entries in bib tex file, give ind or something'
         bib_info = library.entries[0]
@@ -59,65 +59,9 @@ class Citation():
 
         self.bibtex_provided = True
 
-    def input_repo_info(self, repo_url, repo_doi=None, authors_repo=None, version=None,
-                        orcid_map=None,
-                        message='If you use this software, please cite it as below.'):
-        '''Provide additional info about the repository'''
-        if repo_url is not None:
-            assert type(repo_url) == str, type(repo_url)
-            self.info_dict['repo_url'] = repo_url
-        else:
-            self.info_dict['repo_url'] = 'N/A'
-        if message is not None:
-            assert type(message) == str, type(message)
-            self.info_dict['message'] = message
-        else:
-            self.info_dict['message'] = 'N/A'
-        if repo_doi is not None:
-            assert type(repo_doi) == str, type(repo_doi)
-            self.info_dict['repo_doi'] = repo_doi
-        if version is not None:
-            if type(version) != str:
-                version = str(version)
-            self.info_dict['repo_version'] = version
-
-        if authors_repo is not None:  # assume authors of repo are different than authors of bibtex file
-            assert False, 'Different authors specified for repo -- no yet implemented.!'
-
-        if orcid_map is not None:
-            for author in self.info_dict['author_dict'].values():
-                key = (author['first_name'], author['last_name'])
-                if key in orcid_map:
-                    author['orcid'] = 'https://orcid.org/' + orcid_map[key]
-
-        self.repo_provided = True
-
-    def add_orcid(self):
-        '''Interactive function for adding orcid'''
-
-        assert 'author_dict' in self.info_dict.keys(), 'first define authors'
-
-        ad = self.info_dict['author_dict']
-        for i_author, author_name_dict in ad.items():
-            if 'orcid' not in author_name_dict.keys():
-                orcid = input(f'Please type orcid ID or url of {author_name_dict["full_name"]}. If no orcid, leave empty and hit enter.')
-                if orcid != '':
-                    assert type(orcid) == str
-                    if len(orcid) == 19:  # just number
-                        orcid_url = f'https://orcid.org/{orcid}'
-                    elif len(orcid) == 37 and orcid[:18] == 'https://orcid.org/':  # url
-                        orcid_url = orcid
-                    elif len(orcid) == 41 and orcid[:22] == 'https://www.orcid.org/':  # url with www.
-                        orcid_url = orcid
-                    else:
-                        print(f'Orcid {orcid} for {author_name_dict["full_name"]} not recognised as an Orcid format..')
-                        continue
-                    author_name_dict['orcid'] = orcid_url
-
     def prep_info_for_export(self):
         '''Run some checks and make data in order'''
         assert self.bibtex_provided, 'bibtex file not yet provided'
-        assert self.repo_provided, 'repo not yet provided'
 
         idk = self.info_dict.keys()
 
@@ -176,7 +120,7 @@ class Citation():
                 if 'conference' not in self.info_dict.keys():
                     self.info_dict['conference'] = self.info_dict['booktitle']
 
-    def add_author_names_to_cff(self, filename, indent_n_spaces=0):
+    def add_author_names_to_cff(self, indent_n_spaces=0):
         '''Add list of all author names to cff file'''
         assert type(indent_n_spaces) == int and indent_n_spaces >= 0
         id = ' ' * indent_n_spaces
@@ -185,56 +129,75 @@ class Citation():
         assert self.info_dict['n_authors'] == len(ad)
         assert len(ad) > 0
 
-        with open(filename, 'a') as f:  # add
-            f.write(f'{id}authors:\n')
-            for i_author, author_name_dict in ad.items():
-                # f.write(f'{id}  - name-suffix: "N/A"\n')
-                f.write(f'{id}  - family-names: "{author_name_dict["last_name"]}"\n')
-                f.write(f'{id}    given-names: "{author_name_dict["first_name"]}"\n')
-                # f.write(f'{id}    name-particle: "N/A"\n')
-                if 'orcid' in author_name_dict.keys():
-                    f.write(f'{id}    orcid: "{author_name_dict["orcid"]}"\n')
+        f = sys.stdout
+        f.write(f'{id}authors:\n')
+        for i_author, author_name_dict in ad.items():
+            # f.write(f'{id}  - name-suffix: "N/A"\n')
+            f.write(f'{id}  - family-names: "{author_name_dict["last_name"]}"\n')
+            f.write(f'{id}    given-names: "{author_name_dict["first_name"]}"\n')
+            # f.write(f'{id}    name-particle: "N/A"\n')
+            if 'orcid' in author_name_dict.keys():
+                f.write(f'{id}    orcid: "{author_name_dict["orcid"]}"\n')
 
-    def export_to_cff(self, cff_version="1.2.0", filename='CITATION.cff'):
+    def export_as_cff(self, cff_version="1.2.0"):
         '''Export citation info to a cff file.'''
         assert type(cff_version) == str, type(cff_version)
         self.prep_info_for_export()
-        if filename[-4:] != '.cff':
-            filename = filename + '.cff'
 
-        with open(filename, 'w') as f:  # write, so create new file (or overwrite from scratch)
-            f.write(f'date-released: "{self.info_dict["date-released"]}"\n')
-            f.write(f'repository-code: "{self.info_dict["repo_url"]}"\n')
-            f.write(f'message: "{self.info_dict["message"]}"\n')
-            ## Prioritise paper doi over repo doi:
-            if 'doi' in self.info_dict.keys():
-                f.write(f'doi: "{self.info_dict["doi"]}"\n')
-            elif 'repo_doi' in self.info_dict.keys():
-                f.write(f'doi: "{self.info_dict["repo_doi"]}"\n')
-            f.write(f'title: "{self.info_dict["title"]}"\n')
-            f.write(f'cff-version: "{cff_version}"\n')
-            if 'repo_version' in self.info_dict.keys():
-                f.write(f'version: "{self.info_dict["repo_version"]}"\n')
+        f = sys.stdout
+        f.write(f'date-released: "{self.info_dict["date-released"]}"\n')
+        ## Prioritise paper doi over repo doi:
+        if 'doi' in self.info_dict.keys():
+            f.write(f'doi: "{self.info_dict["doi"]}"\n')
+        elif 'repo_doi' in self.info_dict.keys():
+            f.write(f'doi: "{self.info_dict["repo_doi"]}"\n')
+        f.write(f'title: "{self.info_dict["title"]}"\n')
+        f.write(f'cff-version: "{cff_version}"\n')
+        if 'repo_version' in self.info_dict.keys():
+            f.write(f'version: "{self.info_dict["repo_version"]}"\n')
 
-        self.add_author_names_to_cff(filename=filename, indent_n_spaces=0)
+        self.add_author_names_to_cff(indent_n_spaces=0)
 
-        with open(filename, 'a') as f:
-            f.write('preferred-citation:\n')
-            if 'cff_type' in self.info_dict.keys():
-                f.write(f'  type: "{self.info_dict["cff_type"]}"\n')
-            else:
-                f.write('  type: "generic"\n')
-            if 'publisher' in self.info_dict:
-                f.write('  publisher:\n')
-                f.write(f'    name: "{self.info_dict["publisher"]}"\n')
-            if 'conference' in self.info_dict:
-                f.write('  conference:\n')
-                f.write(f'    name: "{self.info_dict["conference"]}"\n')
-            for key in ['doi', 'url', 'date-released', 'issue', 'volume', 'journal', 'title',
-                        'booktitle', 'editor', 'series', 'publisher', 'start', 'end']:
-                if key in self.info_dict.keys():
-                    f.write(f'  {key}: "{self.info_dict[key]}"\n')
+        f.write('preferred-citation:\n')
+        if 'cff_type' in self.info_dict.keys():
+            f.write(f'  type: "{self.info_dict["cff_type"]}"\n')
+        else:
+            f.write('  type: "generic"\n')
+        if 'publisher' in self.info_dict:
+            f.write('  publisher:\n')
+            f.write(f'    name: "{self.info_dict["publisher"]}"\n')
+        if 'conference' in self.info_dict:
+            f.write('  conference:\n')
+            f.write(f'    name: "{self.info_dict["conference"]}"\n')
+        for key in ['doi', 'url', 'date-released', 'issue', 'volume', 'journal', 'title',
+                    'booktitle', 'editor', 'series', 'publisher', 'start', 'end']:
+            if key in self.info_dict.keys():
+                f.write(f'  {key}: "{self.info_dict[key]}"\n')
 
-        self.add_author_names_to_cff(filename=filename, indent_n_spaces=2)
+        self.add_author_names_to_cff(indent_n_spaces=2)
 
-        print(f'Saved as {filename}')
+def process(args, file_name, file_input):
+    """Process the specified input"""
+    bibtex_data = file_input.read()
+    citation = Citation(bibtex_data)
+    citation.export_as_cff()
+
+
+def main():
+    """Program entry point"""
+    parser = argparse.ArgumentParser(
+        description='BibTeX to CFF converter')
+    parser.add_argument('file',
+                        help='File to process',
+                        nargs='*', default='-',
+                        type=str)
+    args = parser.parse_args()
+    for file_name in args.file:
+        if file_name == '-':
+            process(args, '<stdin>', sys.stdin)
+        else:
+            with open(file_name) as file_input:
+                process(args, file_name, file_input)
+
+if __name__ == "__main__":
+    main()
