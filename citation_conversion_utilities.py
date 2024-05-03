@@ -2,7 +2,7 @@
 
 import os, sys
 import bibtexparser
-from datetime import datetime 
+from datetime import datetime
 
 class Citation():
     def __init__(self, bibtex_filepath=None):
@@ -40,8 +40,8 @@ class Citation():
                 self.info_dict['start'] = split_pages[0]
             else:
                 assert False, 'pages does not have expected format'
-        
-        ## Author info 
+
+        ## Author info
         if 'author' in bib_keys:
             author_list = bib_info['author'].split(' and ')
             self.info_dict['n_authors'] = len(author_list)
@@ -57,7 +57,7 @@ class Citation():
         else:
             self.info_dict['author'] = None
 
-        self.bibtex_provided = True 
+        self.bibtex_provided = True
 
     def input_repo_info(self, repo_url, repo_doi=None, authors_repo=None, version=None,
                         orcid_map=None,
@@ -70,7 +70,7 @@ class Citation():
             self.info_dict['repo_url'] = 'N/A'
         if message is not None:
             assert type(message) == str, type(message)
-            self.info_dict['message'] = message 
+            self.info_dict['message'] = message
         else:
             self.info_dict['message'] = 'N/A'
         if repo_doi is not None:
@@ -81,7 +81,7 @@ class Citation():
                 version = str(version)
             self.info_dict['repo_version'] = version
 
-        if authors_repo is not None:  # assume authors of repo are different than authors of bibtex file 
+        if authors_repo is not None:  # assume authors of repo are different than authors of bibtex file
             assert False, 'Different authors specified for repo -- no yet implemented.!'
 
         if orcid_map is not None:
@@ -90,7 +90,7 @@ class Citation():
                 if key in orcid_map:
                     author['orcid'] = 'https://orcid.org/' + orcid_map[key]
 
-        self.repo_provided = True 
+        self.repo_provided = True
 
     def add_orcid(self):
         '''Interactive function for adding orcid'''
@@ -102,16 +102,16 @@ class Citation():
             if 'orcid' not in author_name_dict.keys():
                 orcid = input(f'Please type orcid ID or url of {author_name_dict["full_name"]}. If no orcid, leave empty and hit enter.')
                 if orcid != '':
-                    assert type(orcid) == str 
+                    assert type(orcid) == str
                     if len(orcid) == 19:  # just number
                         orcid_url = f'https://orcid.org/{orcid}'
                     elif len(orcid) == 37 and orcid[:18] == 'https://orcid.org/':  # url
-                        orcid_url = orcid 
+                        orcid_url = orcid
                     elif len(orcid) == 41 and orcid[:22] == 'https://www.orcid.org/':  # url with www.
                         orcid_url = orcid
                     else:
                         print(f'Orcid {orcid} for {author_name_dict["full_name"]} not recognised as an Orcid format..')
-                        continue 
+                        continue
                     author_name_dict['orcid'] = orcid_url
 
     def prep_info_for_export(self):
@@ -129,28 +129,28 @@ class Citation():
                 find_date = False
             elif 'date' in idk:
                 self.info_dict['date-released'] = self.info_dict['date']
-                find_date = False 
-                
-            construct_date = True 
+                find_date = False
+
+            construct_date = True
             dt = datetime.now()
             if 'year' in idk:
                 year = self.info_dict['year']
             else:  # use current date
-                year = dt.year 
-                month = dt.month 
-                day = dt.day 
-                find_date = False 
+                year = dt.year
+                month = dt.month
+                day = dt.day
+                find_date = False
             if 'month' in idk:
                 month = self.info_dict['month']
             else:  # if year known but not month, just to 1 Jan
-                month = 1 
-                day = 1 
-                find_date = False 
+                month = 1
+                day = 1
+                find_date = False
             if 'day' in idk:
                 day = self.info_dict['day']
-                find_date = False 
+                find_date = False
             else:
-                day = 1 
+                day = 1
                 find_date = False
 
 
@@ -161,7 +161,7 @@ class Citation():
         if 'ENTRYTYPE' in self.info_dict.keys():
             type_mapping_bib_to_cff = {'article': 'article', 'book': 'book', 'booklet': 'pamphlet',
                                        'inproceedings': 'conference-paper', 'proceedings': 'proceedings',
-                                       'misc': 'generic', 'manual': 'manual', 'software': 'software', 
+                                       'misc': 'generic', 'manual': 'manual', 'software': 'software',
                                        'techreport': 'report', 'unpublished': 'unpublished'}  #https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-citation-files
             self.info_dict['cff_type'] = type_mapping_bib_to_cff[self.info_dict['ENTRYTYPE']]
 
@@ -183,9 +183,9 @@ class Citation():
         assert 'author_dict' in self.info_dict
         ad = self.info_dict['author_dict']
         assert self.info_dict['n_authors'] == len(ad)
-        assert len(ad) > 0 
+        assert len(ad) > 0
 
-        with open(filename, 'a') as f:  # add 
+        with open(filename, 'a') as f:  # add
             f.write(f'{id}authors:\n')
             for i_author, author_name_dict in ad.items():
                 # f.write(f'{id}  - name-suffix: "N/A"\n')
@@ -230,11 +230,11 @@ class Citation():
             if 'conference' in self.info_dict:
                 f.write('  conference:\n')
                 f.write(f'    name: "{self.info_dict["conference"]}"\n')
-            for key in ['doi', 'url', 'date-released', 'issue', 'volume', 'journal', 'title', 
+            for key in ['doi', 'url', 'date-released', 'issue', 'volume', 'journal', 'title',
                         'booktitle', 'editor', 'series', 'publisher', 'start', 'end']:
                 if key in self.info_dict.keys():
                     f.write(f'  {key}: "{self.info_dict[key]}"\n')
-            
+
         self.add_author_names_to_cff(filename=filename, indent_n_spaces=2)
 
         print(f'Saved as {filename}')
